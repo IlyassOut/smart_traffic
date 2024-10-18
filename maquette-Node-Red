@@ -1,0 +1,308 @@
+[
+    {
+        "id": "a829738fcd42e54e",
+        "type": "tab",
+        "label": "Flow 1",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "a0562fd29dccbbca",
+        "type": "function",
+        "z": "a829738fcd42e54e",
+        "name": "function 1",
+        "func": "msg.payload = {\n    vehicle_count: Math.floor(Math.random() * 50), // Nombre de véhicules\n    average_speed: (Math.random() * 80 + 20).toFixed(2), // Vitesse entre 20 et 100 km/h\n    traffic_density: Math.random() < 0.3 ? \"faible\" : (Math.random() < 0.6 ? \"moyen\" : \"élevé\")\n};\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 240,
+        "y": 300,
+        "wires": [
+            [
+                "a2c84cdfb4f5ccdb",
+                "ca68ca3e27ac0df4"
+            ]
+        ]
+    },
+    {
+        "id": "a2c84cdfb4f5ccdb",
+        "type": "debug",
+        "z": "a829738fcd42e54e",
+        "name": "debug 1",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 480,
+        "y": 160,
+        "wires": []
+    },
+    {
+        "id": "8a4b19a49d6df351",
+        "type": "inject",
+        "z": "a829738fcd42e54e",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "5",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{}",
+        "payloadType": "json",
+        "x": 110,
+        "y": 300,
+        "wires": [
+            [
+                "a0562fd29dccbbca"
+            ]
+        ]
+    },
+    {
+        "id": "ca68ca3e27ac0df4",
+        "type": "http request",
+        "z": "a829738fcd42e54e",
+        "name": "",
+        "method": "POST",
+        "ret": "txt",
+        "paytoqs": "ignore",
+        "url": "http://localhost:3000/api/data",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 550,
+        "y": 420,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "averageSpeed",
+        "type": "http request",
+        "z": "a829738fcd42e54e",
+        "name": "Get Average Speed",
+        "method": "GET",
+        "ret": "obj",
+        "url": "http://localhost:3000/api/average-speed",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "authType": "",
+        "x": 990,
+        "y": 260,
+        "wires": [
+            [
+                "gauge1",
+                "ab823df5fcaef090"
+            ]
+        ]
+    },
+    {
+        "id": "gauge1",
+        "type": "ui_gauge",
+        "z": "a829738fcd42e54e",
+        "name": "Average Speed Gauge",
+        "group": "8198ec5c5a8f4774",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "gtype": "gage",
+        "title": "Vitesse Moyenne",
+        "label": "km/h",
+        "format": "{{msg.payload.averageSpeed}}",
+        "min": 0,
+        "max": "100",
+        "colors": [
+            "#00b500",
+            "#e6e600",
+            "#ca3838"
+        ],
+        "seg1": "",
+        "seg2": "",
+        "diff": false,
+        "className": "",
+        "x": 1220,
+        "y": 240,
+        "wires": []
+    },
+    {
+        "id": "vehicleCount",
+        "type": "http request",
+        "z": "a829738fcd42e54e",
+        "name": "Get Total Vehicles",
+        "method": "GET",
+        "ret": "obj",
+        "url": "http://localhost:3000/api/total-vehicles",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "authType": "",
+        "x": 990,
+        "y": 360,
+        "wires": [
+            [
+                "gauge2"
+            ]
+        ]
+    },
+    {
+        "id": "gauge2",
+        "type": "ui_gauge",
+        "z": "a829738fcd42e54e",
+        "name": "Total Vehicles Gauge",
+        "group": "8198ec5c5a8f4774",
+        "order": 2,
+        "width": 0,
+        "height": 0,
+        "gtype": "gage",
+        "title": "Nombre de Véhicules",
+        "label": "véhicules",
+        "format": "{{msg.payload.totalVehicles}}",
+        "min": 0,
+        "max": "3000",
+        "colors": [
+            "#00b500",
+            "#e6e600",
+            "#ca3838"
+        ],
+        "seg1": "",
+        "seg2": "",
+        "diff": false,
+        "className": "",
+        "x": 1200,
+        "y": 340,
+        "wires": []
+    },
+    {
+        "id": "trafficDensity",
+        "type": "http request",
+        "z": "a829738fcd42e54e",
+        "name": "Get Traffic Density",
+        "method": "GET",
+        "ret": "obj",
+        "paytoqs": "ignore",
+        "url": "http://localhost:3000/api/traffic-density",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 990,
+        "y": 460,
+        "wires": [
+            [
+                "text1"
+            ]
+        ]
+    },
+    {
+        "id": "text1",
+        "type": "ui_text",
+        "z": "a829738fcd42e54e",
+        "group": "8198ec5c5a8f4774",
+        "order": 3,
+        "width": 0,
+        "height": 0,
+        "name": "Traffic Density Text",
+        "label": "Densité de Trafic",
+        "format": "{{msg.payload[0]._id}}: {{msg.payload[0].count}}",
+        "layout": "col-center",
+        "className": "",
+        "style": false,
+        "font": "",
+        "fontSize": "",
+        "color": "#000000",
+        "x": 1210,
+        "y": 440,
+        "wires": []
+    },
+    {
+        "id": "ab823df5fcaef090",
+        "type": "debug",
+        "z": "a829738fcd42e54e",
+        "name": "debug 2",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1040,
+        "y": 80,
+        "wires": []
+    },
+    {
+        "id": "9844239e026b933a",
+        "type": "inject",
+        "z": "a829738fcd42e54e",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "5",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{}",
+        "payloadType": "json",
+        "x": 830,
+        "y": 360,
+        "wires": [
+            [
+                "averageSpeed",
+                "vehicleCount",
+                "trafficDensity"
+            ]
+        ]
+    },
+    {
+        "id": "8198ec5c5a8f4774",
+        "type": "ui_group",
+        "name": "Default",
+        "tab": "5f4d5168423514fc",
+        "order": 1,
+        "disp": true,
+        "width": "6",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "5f4d5168423514fc",
+        "type": "ui_tab",
+        "name": "test",
+        "icon": "dashboard",
+        "disabled": false,
+        "hidden": false
+    }
+]

@@ -1,78 +1,42 @@
-const express = require('express');
-const mongoose = require('mongoose');
-const bodyParser = require('body-parser');
-const cors = require('cors');
+const express = require("express");
+const bodyParser = require("body-parser");
+const { exec } = require("child_process");
+const path = require("path");
 
 const app = express();
-const port = 3000; // Port de votre API
-
-// Middleware
-app.use(cors());
 app.use(bodyParser.json());
 
-// Connexion à MongoDB
-mongoose.connect('mongodb://localhost:27017/testdb', {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-})
-.then(() => console.log('Connected to MongoDB'))
-.catch(err => console.log('Failed to connect to MongoDB', err));
+// Point de terminaison pour recevoir une image
+app.post("/process-image", (req, res) => {
+    const imagePath = req.body.imagePath; // Chemin de l'image envoyé par le client
 
-// Définir un schéma et un modèle Mongoose
-const trafficDataSchema = new mongoose.Schema({
-    vehicle_count: Number,
-    average_speed: String,
-    traffic_density: String,
-    timestamp: { type: Date, default: Date.now }
-});
-
-const TrafficData = mongoose.model('TrafficData', trafficDataSchema);
-
-// Route pour recevoir les données
-app.post('/api/data', async (req, res) => {
-    const newTrafficData = new TrafficData(req.body);
-    try {
-        await newTrafficData.save();
-        res.status(201).send('Data saved successfully');
-    } catch (err) {
-        res.status(400).send('Error saving data: ' + err.message);
+    if (!imagePath) {
+        return res.status(400).json({ error: "Chemin de l'image requis." });
     }
-});
-app.get('/api/average-speed', async (req, res) => {
-    try {
-        const averageSpeed = await TrafficData.aggregate([
-            { $group: { _id: null, avgSpeed: { $avg: { $toDouble: "$average_speed" } } } }
-        ]);
-        res.status(200).json({ averageSpeed: averageSpeed[0] ? averageSpeed[0].avgSpeed : 0 });
-    } catch (err) {
-        res.status(500).send('Error calculating average speed: ' + err.message);
-    }
-});
 
-app.get('/api/total-vehicles', async (req, res) => {
-    try {
-        const totalVehicles = await TrafficData.countDocuments();
-        res.status(200).json({ totalVehicles });
-    } catch (err) {
-        res.status(500).send('Error counting vehicles: ' + err.message);
-    }
-});
+    // Appeler le script Python avec le chemin de l'image
+    const pythonScript = path.join(__dirname, "test.py");
+    const command = `python3 ${pythonScript} ${imagePath}`;
 
-app.get('/api/traffic-density', async (req, res) => {
-    try {
-        const densityCounts = await TrafficData.aggregate([
-            { $group: { _id: "$traffic_density", count: { $sum: 1 } } }
-        ]);
-        res.status(200).json(densityCounts);
-    } catch (err) {
-        res.status(500).send('Error analyzing traffic density: ' + err.message);
-    }
+    exec(command, (error, stdout, stderr) => {
+        if (error) {
+            console.error("Erreur :", stderr);
+            return res.status(500).json({ error: "Erreur de traitement YOLO" });
+        }
+
+        // Renvoyer le résultat au client
+        try {
+            const result = JSON.parse(stdout);
+            res.json(result);
+        } catch (err) {
+            res.status(500).json({ error: "Erreur de traitement des résultats de kaka" });
+        }
+    });
 });
 
-
-
-// Lancer le serveur
-app.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}`);
+// Démarrer le serveur
+const PORT = 3300;
+app.listen(PORT, () => {
+    console.log(`Serveur en écoute sur le port ${PORT}`);
 });
 

@@ -1,5 +1,5 @@
-from ultralytics import YOLO
 import sys
+from ultralytics import YOLO
 import json
 
 def analyze_image(image_path):

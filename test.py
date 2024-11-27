@@ -15,14 +15,14 @@ def analyze_image(image_path):
     pedestrians = [r for r in results[0].boxes if int(r.cls) == pedestrian_class]
 
     # Déterminer l'état du trafic
-    if len(vehicles) == 10:
-        traffic_status = "moyen"
-    else:
-        traffic_status = "eleve" if len(vehicles) > 10 else "faible"
+    #if len(vehicles) == 10:
+     #   traffic_status = "moyen"
+    #else:
+     #   traffic_status = "eleve" if len(vehicles) > 10 else "faible"
 
     # Retourner les résultats
     return {
-        "traffic_status": traffic_status,
+        "traffic_status": len(vehicles), # Nombre des véhicules détectés
         "pedestrians_count": len(pedestrians)  # Nombre de piétons détectés
     }
 

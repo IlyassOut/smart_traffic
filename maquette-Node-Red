@@ -1,88 +1,692 @@
 [
     {
-        "id": "a829738fcd42e54e",
+        "id": "4adb72f9207b6d82",
         "type": "tab",
-        "label": "Flow 1",
+        "label": "Projet smart_traffic",
         "disabled": false,
         "info": "",
         "env": []
     },
     {
-        "id": "a0562fd29dccbbca",
+        "id": "63321cf04cabaaf5",
+        "type": "inject",
+        "z": "4adb72f9207b6d82",
+        "name": "Boucle chaque 1s",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "1",
+        "crontab": "",
+        "once": true,
+        "onceDelay": "0.1",
+        "topic": "",
+        "payload": "{\"interval\":1000}",
+        "payloadType": "json",
+        "x": 2710,
+        "y": 340,
+        "wires": [
+            [
+                "f3dd872e06e74ff3"
+            ]
+        ]
+    },
+    {
+        "id": "2b2653b970a95806",
         "type": "function",
-        "z": "a829738fcd42e54e",
-        "name": "function 1",
-        "func": "msg.payload = {\n    vehicle_count: Math.floor(Math.random() * 50), // Nombre de véhicules\n    average_speed: (Math.random() * 80 + 20).toFixed(2), // Vitesse entre 20 et 100 km/h\n    traffic_density: Math.random() < 0.3 ? \"faible\" : (Math.random() < 0.6 ? \"moyen\" : \"élevé\")\n};\nreturn msg;\n",
+        "z": "4adb72f9207b6d82",
+        "name": "Set Densité",
+        "func": "// Stocker la valeur sélectionnée dans le contexte flow\nflow.set('densite', msg.payload);\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1950,
+        "y": 200,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "f3dd872e06e74ff3",
+        "type": "function",
+        "z": "4adb72f9207b6d82",
+        "name": "Gestion Feux",
+        "func": "// États des feux voiture et piéton\nconst carStates = ['rouge', 'vert', 'jaune'];\nconst pedestrianStates = ['rouge', 'vert'];\n\n// Initialiser les états si non définis\nif (typeof context.carState === 'undefined') {\n    context.carState = 0; // Feu voiture commence par rouge\n    context.timer = 0;    // Timer pour la durée du feu actuel\n    context.exceptionTimer = 0; // Timer pour le cas exceptionnel\n    context.inException = false; // Suivi du cas exceptionnel\n}\n\n// Variables pour les nombres de piétons générés par le bouton\nlet pedestriansSide1 = flow.get('pedestriansSide1') || 0;\nlet pedestriansSide2 = flow.get('pedestriansSide2') || 0;\nconst threshold = 8; // Seuil pour le cas exceptionnel\n\n// Récupérer la densité du trafic stockée\nlet densite = flow.get('densite') || 'moyen'; // Par défaut : moyen\n\n// Définir la durée des feux selon la densité\nlet redDuration;\nlet greenDuration;\nconst yellowDuration = 3000; // Feu jaune : toujours 3 secondes\nconst exceptionDuration = 5000; // 5 secondes pour le cas exceptionnel\n\n// Durées basées sur la densité du trafic\nif (densite === 'faible') {\n    redDuration = 60000;  // 60 secondes pour rouge\n    greenDuration = 15000; // 15 secondes pour vert\n} else if (densite === 'moyen') {\n    redDuration = 30000;  // 30 secondes pour rouge\n    greenDuration = 30000; // 30 secondes pour vert\n} else if (densite === 'eleve') {\n    redDuration = 15000;  // 15 secondes pour rouge\n    greenDuration = 60000; // 60 secondes pour vert\n}\n\n// Vérification du cas exceptionnel\nif ((pedestriansSide1 >= threshold || pedestriansSide2 >= threshold) && !context.inException) {\n    // Si le nombre de piétons dépasse le seuil, entrer dans le mode exceptionnel\n    context.inException = true;\n    context.carState = 0; // Forcer les feux voiture à rouge\n    context.timer = 0; // Réinitialiser le timer normal\n    context.exceptionTimer = 0; // Réinitialiser le timer exceptionnel\n    // Réinitialiser les nombres de piétons\n    flow.set('pedestriansSide1', 0);\n    flow.set('pedestriansSide2', 0);\n}\n\n// Gestion du cycle des feux voitures avec cas exceptionnel\nif (context.inException) {\n    // Si nous sommes dans le mode exceptionnel\n    if (context.exceptionTimer < exceptionDuration) {\n        context.exceptionTimer += msg.payload.interval; // Incrémenter le timer d'exception\n        context.carState = 0; // Feu rouge pour les voitures\n        context.pedestrianState = 1; // Feu vert pour les piétons\n    } else {\n        // Fin du mode exceptionnel\n        context.inException = false;\n        context.exceptionTimer = 0; // Réinitialiser le timer exceptionnel\n    }\n} else {\n    // Gestion normale du cycle des feux\n    if (context.carState === 0 && context.timer < redDuration) {\n        // Feu rouge pour les voitures\n        context.timer += msg.payload.interval; // Incrémenter le timer\n    } else if (context.carState === 1 && context.timer < greenDuration) {\n        // Feu vert pour les voitures\n        context.timer += msg.payload.interval; // Incrémenter le timer\n    } else if (context.carState === 2 && context.timer < yellowDuration) {\n        // Feu jaune pour les voitures\n        context.timer += msg.payload.interval; // Incrémenter le timer\n    } else {\n        // Passer au feu suivant\n        context.carState = (context.carState + 1) % 3; // 0 = rouge, 1 = vert, 2 = jaune\n        context.timer = 0; // Réinitialiser le timer\n    }\n}\n\n// Gestion des feux piétons\nif (context.carState === 0) {\n    // Si le feu voiture est rouge, feu piéton est vert\n    context.pedestrianState = 1;\n} else {\n    // Si le feu voiture est vert ou jaune, feu piéton est rouge\n    context.pedestrianState = 0;\n}\n\n// Définir les états\nmsg.carLight = carStates[context.carState];\nmsg.pedestrianLight = pedestrianStates[context.pedestrianState];\n\n// Retourner les états des feux\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 2890,
+        "y": 340,
+        "wires": [
+            [
+                "8915f766b170247d",
+                "a64525a7983bc2eb"
+            ]
+        ]
+    },
+    {
+        "id": "d7bae3fc56f04b50",
+        "type": "ui_led",
+        "z": "4adb72f9207b6d82",
+        "order": 1,
+        "group": "group1",
+        "width": "",
+        "height": "",
+        "label": "Feu Rouge Voiture",
+        "colorForValue": [
+            {
+                "color": "#ff0000",
+                "value": "rouge",
+                "valueType": "str"
+            }
+        ],
+        "allowColorForValueInMessage": false,
+        "shape": "circle",
+        "showGlow": true,
+        "name": "",
+        "x": 3370,
+        "y": 160,
+        "wires": []
+    },
+    {
+        "id": "47ac1ebbaa230a01",
+        "type": "ui_led",
+        "z": "4adb72f9207b6d82",
+        "order": 2,
+        "group": "group1",
+        "width": "",
+        "height": "",
+        "label": "Feu Jaune Voiture",
+        "colorForValue": [
+            {
+                "color": "#ffff00",
+                "value": "jaune",
+                "valueType": "str"
+            }
+        ],
+        "allowColorForValueInMessage": false,
+        "shape": "circle",
+        "showGlow": true,
+        "name": "",
+        "x": 3370,
+        "y": 220,
+        "wires": []
+    },
+    {
+        "id": "7d212d4a32ee17e4",
+        "type": "ui_led",
+        "z": "4adb72f9207b6d82",
+        "order": 3,
+        "group": "group1",
+        "width": "",
+        "height": "",
+        "label": "Feu Vert Voiture",
+        "colorForValue": [
+            {
+                "color": "#008000",
+                "value": "vert",
+                "valueType": "str"
+            }
+        ],
+        "allowColorForValueInMessage": false,
+        "shape": "circle",
+        "showGlow": true,
+        "name": "",
+        "x": 3370,
+        "y": 280,
+        "wires": []
+    },
+    {
+        "id": "b3481acd1054c9da",
+        "type": "ui_led",
+        "z": "4adb72f9207b6d82",
+        "order": 4,
+        "group": "group1",
+        "width": "",
+        "height": "",
+        "label": "Feu Rouge Piéton",
+        "colorForValue": [
+            {
+                "color": "#ff0000",
+                "value": "rouge",
+                "valueType": "str"
+            }
+        ],
+        "allowColorForValueInMessage": false,
+        "shape": "circle",
+        "showGlow": true,
+        "name": "",
+        "x": 3370,
+        "y": 460,
+        "wires": []
+    },
+    {
+        "id": "a28c634df84de03a",
+        "type": "ui_led",
+        "z": "4adb72f9207b6d82",
+        "order": 5,
+        "group": "group1",
+        "width": "",
+        "height": "",
+        "label": "Feu Vert Piéton",
+        "colorForValue": [
+            {
+                "color": "#008000",
+                "value": "vert",
+                "valueType": "str"
+            }
+        ],
+        "allowColorForValueInMessage": false,
+        "shape": "circle",
+        "showGlow": true,
+        "name": "",
+        "x": 3370,
+        "y": 500,
+        "wires": []
+    },
+    {
+        "id": "a64525a7983bc2eb",
+        "type": "change",
+        "z": "4adb72f9207b6d82",
+        "name": "",
+        "rules": [
+            {
+                "t": "set",
+                "p": "payload",
+                "pt": "msg",
+                "to": "carLight",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 3140,
+        "y": 220,
+        "wires": [
+            [
+                "d7bae3fc56f04b50",
+                "47ac1ebbaa230a01",
+                "7d212d4a32ee17e4"
+            ]
+        ]
+    },
+    {
+        "id": "8915f766b170247d",
+        "type": "change",
+        "z": "4adb72f9207b6d82",
+        "name": "",
+        "rules": [
+            {
+                "t": "set",
+                "p": "payload",
+                "pt": "msg",
+                "to": "pedestrianLight",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 3140,
+        "y": 480,
+        "wires": [
+            [
+                "b3481acd1054c9da",
+                "a28c634df84de03a"
+            ]
+        ]
+    },
+    {
+        "id": "41e32f7c926714fc",
+        "type": "ui_dropdown",
+        "z": "4adb72f9207b6d82",
+        "name": "",
+        "label": "choisir densite",
+        "tooltip": "",
+        "place": "Select option",
+        "group": "4484ebb356053688",
+        "order": 0,
+        "width": 0,
+        "height": 0,
+        "passthru": false,
+        "multiple": false,
+        "options": [
+            {
+                "label": "eleve",
+                "value": "eleve",
+                "type": "str"
+            },
+            {
+                "label": "moyen",
+                "value": "moyen",
+                "type": "str"
+            },
+            {
+                "label": "faible",
+                "value": "faible",
+                "type": "str"
+            }
+        ],
+        "payload": "",
+        "topic": "",
+        "topicType": "str",
+        "className": "",
+        "x": 1700,
+        "y": 200,
+        "wires": [
+            [
+                "2b2653b970a95806"
+            ]
+        ]
+    },
+    {
+        "id": "c495591fc0fc8c79",
+        "type": "function",
+        "z": "4adb72f9207b6d82",
+        "name": "Générer Nombre Aléatoire",
+        "func": "let randomPedestrians;\nlet randomChance = Math.random();  // Génère un nombre aléatoire entre 0 et 1\n\nif (randomChance < 0.80) {\n    // 60% de chance pour les valeurs entre 0 et 3\n    randomPedestrians = Math.floor(Math.random() * 4);  // Valeurs 0 à 3\n} else if (randomChance < 0.95) {\n    // 35% de chance pour les valeurs entre 4 et 8\n    randomPedestrians = Math.floor(Math.random() * 5) + 4;  // Valeurs 4 à 8\n} else {\n    // 5% de chance pour les valeurs entre 9 et 15\n    randomPedestrians = Math.floor(Math.random() * 7) + 9;  // Valeurs 9 à 15\n}\n\nmsg.payload = randomPedestrians;\nflow.set('pedestriansSide1', randomPedestrians);\n\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1790,
+        "y": 480,
+        "wires": [
+            [
+                "d7d5571cdcdb748c"
+            ]
+        ]
+    },
+    {
+        "id": "d7d5571cdcdb748c",
+        "type": "ui_gauge",
+        "z": "4adb72f9207b6d82",
+        "name": "Nombre de Piétons",
+        "group": "fff994f7efb0a2bc",
+        "order": 1,
+        "width": "",
+        "height": "",
+        "gtype": "gage",
+        "title": "nrbe pieton cote 1",
+        "label": "Piétons",
+        "format": "{{value}}",
+        "min": 0,
+        "max": "8",
+        "colors": [
+            "#00b500",
+            "#e6e600",
+            "#ca3838"
+        ],
+        "seg1": "",
+        "seg2": "",
+        "diff": false,
+        "className": "",
+        "x": 2230,
+        "y": 400,
+        "wires": []
+    },
+    {
+        "id": "2b7e2673d5b2e964",
+        "type": "ui_button",
+        "z": "4adb72f9207b6d82",
+        "name": "",
+        "group": "fff994f7efb0a2bc",
+        "order": 0,
+        "width": 0,
+        "height": 0,
+        "passthru": false,
+        "label": "nombre aleatoire",
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "",
+        "className": "",
+        "icon": "",
+        "payload": "",
+        "payloadType": "str",
+        "topic": "topic",
+        "topicType": "msg",
+        "x": 1450,
+        "y": 520,
+        "wires": [
+            [
+                "c495591fc0fc8c79",
+                "b2057ab09607b96e"
+            ]
+        ]
+    },
+    {
+        "id": "39bb5334b33c3a2c",
+        "type": "ui_gauge",
+        "z": "4adb72f9207b6d82",
+        "name": "Nombre de Piétons",
+        "group": "fff994f7efb0a2bc",
+        "order": 1,
+        "width": "",
+        "height": "",
+        "gtype": "gage",
+        "title": "nrbe pieton cote 2",
+        "label": "Piétons",
+        "format": "{{value}}",
+        "min": 0,
+        "max": "8",
+        "colors": [
+            "#00b500",
+            "#e6e600",
+            "#ca3838"
+        ],
+        "seg1": "",
+        "seg2": "",
+        "diff": false,
+        "className": "",
+        "x": 2230,
+        "y": 560,
+        "wires": []
+    },
+    {
+        "id": "b2057ab09607b96e",
+        "type": "function",
+        "z": "4adb72f9207b6d82",
+        "name": "Générer Nombre Aléatoire",
+        "func": "let randomPedestrians;\nlet randomChance = Math.random();  // Génère un nombre aléatoire entre 0 et 1\n\nif (randomChance < 0.80) {\n    // 60% de chance pour les valeurs entre 0 et 3\n    randomPedestrians = Math.floor(Math.random() * 4);  // Valeurs 0 à 3\n} else if (randomChance < 0.95) {\n    // 35% de chance pour les valeurs entre 4 et 8\n    randomPedestrians = Math.floor(Math.random() * 5) + 4;  // Valeurs 4 à 8\n} else {\n    // 5% de chance pour les valeurs entre 9 et 15\n    randomPedestrians = Math.floor(Math.random() * 7) + 9;  // Valeurs 9 à 15\n}\n\nmsg.payload = randomPedestrians;\nflow.set('pedestriansSide2', randomPedestrians);\n\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1790,
+        "y": 560,
+        "wires": [
+            [
+                "39bb5334b33c3a2c"
+            ]
+        ]
+    },
+    {
+        "id": "file-read-node",
+        "type": "file in",
+        "z": "4adb72f9207b6d82",
+        "name": "multi vehicule",
+        "filename": "/home/ayman/Desktop/tomobilat.jpeg",
+        "filenameType": "str",
+        "format": "",
+        "chunk": false,
+        "sendError": false,
+        "encoding": "binary",
+        "allProps": false,
+        "x": 420,
+        "y": 80,
+        "wires": [
+            [
+                "prepare-payload-node"
+            ]
+        ]
+    },
+    {
+        "id": "prepare-payload-node",
+        "type": "function",
+        "z": "4adb72f9207b6d82",
+        "name": "Prepare Payload",
+        "func": "msg.headers = {\n    \"Content-Type\": \"multipart/form-data\"\n};\nmsg.payload = {\n    image: {\n        value: msg.payload, // Le contenu de l'image\n        options: {\n            filename: \"img.jpeg\",\n            contentType: \"image/jpeg\" // Type MIME\n        }\n    }\n};\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 730,
+        "y": 140,
+        "wires": [
+            [
+                "http-request-node"
+            ]
+        ]
+    },
+    {
+        "id": "http-request-node",
+        "type": "http request",
+        "z": "4adb72f9207b6d82",
+        "name": "Send Image to Server",
+        "method": "POST",
+        "ret": "obj",
+        "paytoqs": "ignore",
+        "url": "http://localhost:3300/upload-image",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 1040,
+        "y": 140,
+        "wires": [
+            [
+                "0de4e7774002bb92",
+                "77839e6365e6953c"
+            ]
+        ]
+    },
+    {
+        "id": "0de4e7774002bb92",
+        "type": "function",
+        "z": "4adb72f9207b6d82",
+        "name": "server set densite ",
+        "func": "// Stocker la valeur sélectionnée dans le contexte flow\nconst val = msg.payload.traffic_status;\n\n// Traduire le nombre en état textuel\nlet trafficState = \"\";\nif (val <= 10) {\n    trafficState = \"faible\";\n} else if (val <= 20) {\n    trafficState = \"moyen\";\n} else {\n    trafficState = \"eleve\";\n}\n\n// Enregistrer dans le contexte flow\nflow.set('densite', trafficState);\n\n// Retourner un objet msg avec la valeur dans msg.payload\nmsg.payload = trafficState;\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 240,
-        "y": 300,
+        "x": 1450,
+        "y": 200,
         "wires": [
             [
-                "a2c84cdfb4f5ccdb",
-                "ca68ca3e27ac0df4"
+                "41e32f7c926714fc"
             ]
         ]
     },
     {
-        "id": "a2c84cdfb4f5ccdb",
-        "type": "debug",
-        "z": "a829738fcd42e54e",
-        "name": "debug 1",
-        "active": false,
-        "tosidebar": true,
-        "console": false,
-        "tostatus": false,
-        "complete": "payload",
-        "targetType": "msg",
-        "statusVal": "",
-        "statusType": "auto",
-        "x": 480,
-        "y": 160,
-        "wires": []
+        "id": "a092eb42a19a6ffd",
+        "type": "file in",
+        "z": "4adb72f9207b6d82",
+        "name": "1 vehicule",
+        "filename": "/home/ayman/Desktop/bilance.jpeg",
+        "filenameType": "str",
+        "format": "",
+        "chunk": false,
+        "sendError": false,
+        "encoding": "binary",
+        "allProps": false,
+        "x": 390,
+        "y": 200,
+        "wires": [
+            [
+                "prepare-payload-node"
+            ]
+        ]
     },
     {
-        "id": "8a4b19a49d6df351",
+        "id": "bf9816812cf663da",
+        "type": "function",
+        "z": "4adb72f9207b6d82",
+        "name": "servr set pieton",
+        "func": "// Stocker la valeur sélectionnée dans le contexte flow\nconst val = msg.payload.pedestrians_count;\n\n// Enregistrer dans le contexte flow\nflow.set('pedestriansSide1', val);\n\n// Retourner un objet msg avec la valeur dans msg.payload\nmsg.payload = val;\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1440,
+        "y": 400,
+        "wires": [
+            [
+                "d7d5571cdcdb748c",
+                "4603a688da437b26"
+            ]
+        ]
+    },
+    {
+        "id": "07a473b55ed72e4c",
         "type": "inject",
-        "z": "a829738fcd42e54e",
-        "name": "",
-        "props": [
-            {
-                "p": "payload"
-            },
-            {
-                "p": "topic",
-                "vt": "str"
-            }
-        ],
-        "repeat": "5",
+        "z": "4adb72f9207b6d82",
+        "name": "Send ",
+        "props": [],
+        "repeat": "",
         "crontab": "",
         "once": false,
         "onceDelay": 0.1,
         "topic": "",
-        "payload": "{}",
-        "payloadType": "json",
-        "x": 110,
-        "y": 300,
+        "x": 170,
+        "y": 280,
         "wires": [
             [
-                "a0562fd29dccbbca"
+                "e5773a3b4610ba1b"
             ]
         ]
     },
     {
-        "id": "ca68ca3e27ac0df4",
+        "id": "e5773a3b4610ba1b",
+        "type": "file in",
+        "z": "4adb72f9207b6d82",
+        "name": "2 personnes",
+        "filename": "/home/ayman/Desktop/p-2.jpeg",
+        "filenameType": "str",
+        "format": "",
+        "chunk": false,
+        "sendError": false,
+        "encoding": "binary",
+        "allProps": false,
+        "x": 400,
+        "y": 280,
+        "wires": [
+            [
+                "e14ba23e5eb9a1c6"
+            ]
+        ]
+    },
+    {
+        "id": "d99a0170d74d590a",
+        "type": "file in",
+        "z": "4adb72f9207b6d82",
+        "name": "10 personnes",
+        "filename": "/home/ayman/Desktop/p-10.jpeg",
+        "filenameType": "str",
+        "format": "",
+        "chunk": false,
+        "sendError": false,
+        "encoding": "binary",
+        "allProps": false,
+        "x": 410,
+        "y": 400,
+        "wires": [
+            [
+                "e14ba23e5eb9a1c6"
+            ]
+        ]
+    },
+    {
+        "id": "4e7e91e8a3b1a161",
+        "type": "inject",
+        "z": "4adb72f9207b6d82",
+        "name": "Send ",
+        "props": [],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "x": 170,
+        "y": 400,
+        "wires": [
+            [
+                "d99a0170d74d590a"
+            ]
+        ]
+    },
+    {
+        "id": "6e06556a26e2e44c",
+        "type": "inject",
+        "z": "4adb72f9207b6d82",
+        "name": "Send ",
+        "props": [],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "x": 170,
+        "y": 200,
+        "wires": [
+            [
+                "a092eb42a19a6ffd"
+            ]
+        ]
+    },
+    {
+        "id": "84e421e7f1714c29",
+        "type": "inject",
+        "z": "4adb72f9207b6d82",
+        "name": "Send ",
+        "props": [],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "x": 170,
+        "y": 80,
+        "wires": [
+            [
+                "file-read-node"
+            ]
+        ]
+    },
+    {
+        "id": "e14ba23e5eb9a1c6",
+        "type": "function",
+        "z": "4adb72f9207b6d82",
+        "name": "Prepare Payload",
+        "func": "msg.headers = {\n    \"Content-Type\": \"multipart/form-data\"\n};\nmsg.payload = {\n    image: {\n        value: msg.payload, // Le contenu de l'image\n        options: {\n            filename: \"img.jpeg\",\n            contentType: \"image/jpeg\" // Type MIME\n        }\n    }\n};\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 750,
+        "y": 400,
+        "wires": [
+            [
+                "3fb0e381757abe73"
+            ]
+        ]
+    },
+    {
+        "id": "3fb0e381757abe73",
         "type": "http request",
-        "z": "a829738fcd42e54e",
-        "name": "",
+        "z": "4adb72f9207b6d82",
+        "name": "Send Image to Server",
         "method": "POST",
-        "ret": "txt",
+        "ret": "obj",
         "paytoqs": "ignore",
-        "url": "http://localhost:3000/api/data",
+        "url": "http://localhost:3300/upload-image",
         "tls": "",
         "persist": false,
         "proxy": "",
@@ -90,219 +694,202 @@
         "authType": "",
         "senderr": false,
         "headers": [],
-        "x": 550,
-        "y": 420,
-        "wires": [
-            []
-        ]
-    },
-    {
-        "id": "averageSpeed",
-        "type": "http request",
-        "z": "a829738fcd42e54e",
-        "name": "Get Average Speed",
-        "method": "GET",
-        "ret": "obj",
-        "url": "http://localhost:3000/api/average-speed",
-        "tls": "",
-        "persist": false,
-        "proxy": "",
-        "authType": "",
-        "x": 990,
-        "y": 260,
+        "x": 1040,
+        "y": 400,
         "wires": [
             [
-                "gauge1",
-                "ab823df5fcaef090"
+                "bf9816812cf663da"
             ]
         ]
     },
     {
-        "id": "gauge1",
+        "id": "dcf88d6302d7d2f1",
+        "type": "file in",
+        "z": "4adb72f9207b6d82",
+        "name": "10 personnes",
+        "filename": "/home/ayman/Desktop/p-55.jpeg",
+        "filenameType": "str",
+        "format": "",
+        "chunk": false,
+        "sendError": false,
+        "encoding": "binary",
+        "allProps": false,
+        "x": 400,
+        "y": 520,
+        "wires": [
+            [
+                "e14ba23e5eb9a1c6"
+            ]
+        ]
+    },
+    {
+        "id": "aa78d29487960a4c",
+        "type": "inject",
+        "z": "4adb72f9207b6d82",
+        "name": "Send ",
+        "props": [],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "x": 170,
+        "y": 520,
+        "wires": [
+            [
+                "dcf88d6302d7d2f1"
+            ]
+        ]
+    },
+    {
+        "id": "6ad4f7964982ef9b",
         "type": "ui_gauge",
-        "z": "a829738fcd42e54e",
-        "name": "Average Speed Gauge",
-        "group": "8198ec5c5a8f4774",
+        "z": "4adb72f9207b6d82",
+        "name": "",
+        "group": "4484ebb356053688",
         "order": 1,
         "width": 0,
         "height": 0,
-        "gtype": "gage",
-        "title": "Vitesse Moyenne",
-        "label": "km/h",
-        "format": "{{msg.payload.averageSpeed}}",
+        "gtype": "donut",
+        "title": "Nbres de vehicules",
+        "label": "vehicules",
+        "format": "{{value}}",
         "min": 0,
-        "max": "100",
+        "max": "50",
         "colors": [
             "#00b500",
             "#e6e600",
             "#ca3838"
         ],
-        "seg1": "",
-        "seg2": "",
+        "seg1": "10",
+        "seg2": "20",
         "diff": false,
         "className": "",
-        "x": 1220,
-        "y": 240,
+        "x": 1690,
+        "y": 60,
         "wires": []
     },
     {
-        "id": "vehicleCount",
-        "type": "http request",
-        "z": "a829738fcd42e54e",
-        "name": "Get Total Vehicles",
-        "method": "GET",
-        "ret": "obj",
-        "url": "http://localhost:3000/api/total-vehicles",
-        "tls": "",
-        "persist": false,
-        "proxy": "",
-        "authType": "",
-        "x": 990,
-        "y": 360,
+        "id": "77839e6365e6953c",
+        "type": "function",
+        "z": "4adb72f9207b6d82",
+        "name": "to number",
+        "func": "msg.payload=msg.payload.traffic_status;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1420,
+        "y": 60,
         "wires": [
             [
-                "gauge2"
+                "6ad4f7964982ef9b"
             ]
         ]
     },
     {
-        "id": "gauge2",
-        "type": "ui_gauge",
-        "z": "a829738fcd42e54e",
-        "name": "Total Vehicles Gauge",
-        "group": "8198ec5c5a8f4774",
-        "order": 2,
-        "width": 0,
-        "height": 0,
-        "gtype": "gage",
-        "title": "Nombre de Véhicules",
-        "label": "véhicules",
-        "format": "{{msg.payload.totalVehicles}}",
-        "min": 0,
-        "max": "3000",
-        "colors": [
-            "#00b500",
-            "#e6e600",
-            "#ca3838"
-        ],
-        "seg1": "",
-        "seg2": "",
-        "diff": false,
-        "className": "",
-        "x": 1200,
-        "y": 340,
-        "wires": []
-    },
-    {
-        "id": "trafficDensity",
-        "type": "http request",
-        "z": "a829738fcd42e54e",
-        "name": "Get Traffic Density",
-        "method": "GET",
-        "ret": "obj",
-        "paytoqs": "ignore",
-        "url": "http://localhost:3000/api/traffic-density",
-        "tls": "",
-        "persist": false,
-        "proxy": "",
-        "insecureHTTPParser": false,
-        "authType": "",
-        "senderr": false,
-        "headers": [],
-        "x": 990,
-        "y": 460,
-        "wires": [
-            [
-                "text1"
-            ]
-        ]
-    },
-    {
-        "id": "text1",
-        "type": "ui_text",
-        "z": "a829738fcd42e54e",
-        "group": "8198ec5c5a8f4774",
+        "id": "8c8faac8d93be388",
+        "type": "ui_button",
+        "z": "4adb72f9207b6d82",
+        "name": "",
+        "group": "fff994f7efb0a2bc",
         "order": 3,
         "width": 0,
         "height": 0,
-        "name": "Traffic Density Text",
-        "label": "Densité de Trafic",
-        "format": "{{msg.payload[0]._id}}: {{msg.payload[0].count}}",
-        "layout": "col-center",
+        "passthru": false,
+        "label": "forcer nbre > 8 ",
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "",
         "className": "",
-        "style": false,
-        "font": "",
-        "fontSize": "",
-        "color": "#000000",
-        "x": 1210,
-        "y": 440,
-        "wires": []
-    },
-    {
-        "id": "ab823df5fcaef090",
-        "type": "debug",
-        "z": "a829738fcd42e54e",
-        "name": "debug 2",
-        "active": false,
-        "tosidebar": true,
-        "console": false,
-        "tostatus": false,
-        "complete": "true",
-        "targetType": "full",
-        "statusVal": "",
-        "statusType": "auto",
-        "x": 1040,
-        "y": 80,
-        "wires": []
-    },
-    {
-        "id": "9844239e026b933a",
-        "type": "inject",
-        "z": "a829738fcd42e54e",
-        "name": "",
-        "props": [
-            {
-                "p": "payload"
-            },
-            {
-                "p": "topic",
-                "vt": "str"
-            }
-        ],
-        "repeat": "5",
-        "crontab": "",
-        "once": true,
-        "onceDelay": 0.1,
-        "topic": "",
-        "payload": "{}",
-        "payloadType": "json",
-        "x": 830,
-        "y": 360,
+        "icon": "",
+        "payload": "",
+        "payloadType": "str",
+        "topic": "topic",
+        "topicType": "msg",
+        "x": 1440,
+        "y": 680,
         "wires": [
             [
-                "averageSpeed",
-                "vehicleCount",
-                "trafficDensity"
+                "8b7af4a403ea98b0"
             ]
         ]
     },
     {
-        "id": "8198ec5c5a8f4774",
+        "id": "8b7af4a403ea98b0",
+        "type": "function",
+        "z": "4adb72f9207b6d82",
+        "name": "function 1",
+        "func": "let randomPedestrians;\nlet GN = 10;  // forcer 10\n\n\n\nmsg.payload = GN;\nflow.set('pedestriansSide1', GN);\n\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1740,
+        "y": 680,
+        "wires": [
+            [
+                "d7d5571cdcdb748c",
+                "39bb5334b33c3a2c"
+            ]
+        ]
+    },
+    {
+        "id": "4603a688da437b26",
+        "type": "debug",
+        "z": "4adb72f9207b6d82",
+        "name": "debug 1",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1760,
+        "y": 320,
+        "wires": []
+    },
+    {
+        "id": "group1",
         "type": "ui_group",
-        "name": "Default",
-        "tab": "5f4d5168423514fc",
+        "name": "Carrefour",
+        "tab": "tab1",
         "order": 1,
+        "disp": true,
+        "width": 6
+    },
+    {
+        "id": "4484ebb356053688",
+        "type": "ui_group",
+        "name": "densite",
+        "tab": "tab1",
+        "order": 3,
         "disp": true,
         "width": "6",
         "collapse": false,
         "className": ""
     },
     {
-        "id": "5f4d5168423514fc",
+        "id": "fff994f7efb0a2bc",
+        "type": "ui_group",
+        "name": "pieton",
+        "tab": "tab1",
+        "order": 4,
+        "disp": true,
+        "width": "6",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "tab1",
         "type": "ui_tab",
-        "name": "test",
+        "name": "Feux de Signalisation",
         "icon": "dashboard",
-        "disabled": false,
-        "hidden": false
+        "order": 1
     }
 ]

@@ -14,4 +14,4 @@ source venv/bin/activate
 Installer les paquets requis :
 
 
-pip install torch torchvision torchaudio ultralystic
+pip install torch torchvision torchaudio ultralytics
